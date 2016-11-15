@@ -8,6 +8,8 @@
 #include <sys/types.h>
 #include <linux/limits.h>
 
+#include <stdint.h>
+
 #define RED   "\x1B[31m"
 #define GRN   "\x1B[32m"
 #define YEL   "\x1B[33m"
@@ -69,7 +71,10 @@ addr getbaseaddr(pid_t pid){
     f = fopen(fname, "r");
 	
     char buff[255];
+   	fgets(buff, 255, f); /* because i need better way for assault cube to parse mpas file third line */
    	fgets(buff, 255, f);
+   	fgets(buff, 255, f);
+   	printf("%s\n", buff);
 
   	long long unsigned int base_addr;
 
@@ -94,13 +99,53 @@ int bytesToInt(unsigned char* b){
 	return val;
 }
 
+long bytesToLong(unsigned char* b){
+
+	uint64_t n = 0;
+
+	n += ((uint64_t)b[7]<<56);
+	n += ((uint64_t)b[6]<<48);
+	n += ((uint64_t)b[5]<<40);
+	n += ((uint64_t)b[4]<<32);
+	n += ((uint64_t)b[3]<<24);
+	n += ((uint64_t)b[2]<<16);
+	n += ((uint64_t)b[1]<<8);
+	n += ((uint64_t)b[0]<<0);
+
+	return n;
+}
+
 int intToBytes(int n, char *buf){
 
-	for (int i = 0; i < 4; ++i){
+	for (int i = 0; i < 8; ++i){
 		buf[i] = n>>i*8;
 	}
 
 	return 0;
+}
+
+long read_long(pid_t pid, addr addy){
+	struct iovec local[1];
+	struct iovec remote[1];
+
+	int nbytes = 8;
+	unsigned char buf[nbytes];
+	ssize_t nread;           
+
+	local[0].iov_base = buf;
+	local[0].iov_len = nbytes;
+
+	remote[0].iov_base = addy;
+	remote[0].iov_len = nbytes;
+
+	nread = process_vm_readv(pid, local, 1, remote, 1, 0);
+
+	for (int i = 0; i < 8; ++i)
+	{
+		printf("%x ", buf[i]);
+	}printf("\n");
+
+	return bytesToLong(buf);
 }
 
 int read_int(pid_t pid, addr addy){
@@ -124,7 +169,7 @@ int read_int(pid_t pid, addr addy){
 
 int write_int(pid_t pid, addr addy, int n){
 
- 	char buf[4];
+ 	unsigned char buf[4];
  	intToBytes(1337,buf);
 
 	struct iovec local[1];
@@ -148,7 +193,7 @@ int main(void){
 
 	privcheck(); // Make sure we are running as root (process_vm_readv and writev require this)
 
-	char* name = "structloop";
+	char* name = "assaultcube";
 
 	pid_t pid = getPID(name);
 
@@ -161,48 +206,31 @@ int main(void){
 
 	addr base_addr = getbaseaddr(pid);
 
+
+    addr a_player = base_addr+0x378130;
+    addr a_playerP = (addr)read_long(pid,a_player);
+
+    addr a_player_vh = a_playerP+0x110;
+
+
     printf(YEL "Found Base Address: \t" RESET "%p\n", base_addr);
+    printf(YEL "Player Pointer: \t" RESET "%p\n", a_playerP);
+    printf(YEL "Player V Health: \t" RESET "%p\n", a_player_vh);
 
-    addr offset_addr = base_addr+0x201014;
+   
+    if (write_int(pid,(addr)a_player_vh,1337)){
+    	printf(YEL "Hacked Health" RESET "\n");
+    } 
 
-    printf(YEL "Offset Address: \t" RESET "%p\n", offset_addr);
 
-
-    int y = read_int(pid,offset_addr);
-    printf("Y: %i\n", y);
-
-    int s = write_int(pid,offset_addr,1337);
-    printf("S: %i\n", s);
+    return 0;
+}
 
 /*
-	// 1337 decimal in hex is 0x539
-	buf[0] = 0x39;
-	buf[1] = 0x05;
-	buf[2] = 0x00;
-	buf[3] = 0x00;
-56075b6015d8
-56075a02b6c0
+0x4004d000 base addr
 
-
-56075a02b5b0 + 0x110
-=
-B0 B5 2 5A 7 56 0 0 
-
-
-
-
-558070b75f88
-55806f59f6c0
-
-
-55806f59f5b0  + 0x110 = 55806f59f6c0
-B0 F5 59 6F 80 55 0 0
-
-	nread = process_vm_writev(pid, local, 1, remote, 1, 0);
-
-	printf("%li bytes written to %p\n", nread,(void *) offset_addr);
-
-	print_bytes(buf,sizeof(buf)/sizeof(char));  */
-
-    return 0; // Success -- we're done!
-}
+0x55d2b7a4b918 // not visual
+0x55d2b2f1d400 // visual
+// 4b6798
+// 378130
+*/
