@@ -1,3 +1,11 @@
+/*
+
+Run with:
+gcc hack.c -o hack && sudo hack
+
+*/
+
+
 #define _GNU_SOURCE
 #include <sys/uio.h>
 #include <stdio.h>
@@ -72,9 +80,6 @@ addr getbaseaddr(pid_t pid){
 	
     char buff[255];
    	fgets(buff, 255, f); /* because i need better way for assault cube to parse mpas file third line */
-   	fgets(buff, 255, f);
-   	fgets(buff, 255, f);
-   	printf("%s\n", buff);
 
   	long long unsigned int base_addr;
 
@@ -140,11 +145,6 @@ long read_long(pid_t pid, addr addy){
 
 	nread = process_vm_readv(pid, local, 1, remote, 1, 0);
 
-	for (int i = 0; i < 8; ++i)
-	{
-		printf("%x ", buf[i]);
-	}printf("\n");
-
 	return bytesToLong(buf);
 }
 
@@ -170,7 +170,7 @@ int read_int(pid_t pid, addr addy){
 int write_int(pid_t pid, addr addy, int n){
 
  	unsigned char buf[4];
- 	intToBytes(1337,buf);
+ 	intToBytes(n,buf);
 
 	struct iovec local[1];
 	struct iovec remote[1];
@@ -207,30 +207,23 @@ int main(void){
 	addr base_addr = getbaseaddr(pid);
 
 
-    addr a_player = base_addr+0x378130;
-    addr a_playerP = (addr)read_long(pid,a_player);
-
-    addr a_player_vh = a_playerP+0x110;
-
+    addr player1p = base_addr+0x378130;
+    addr player1 = (addr)read_long(pid,player1p);
+    addr player1_vh = player1+0x110;
+       
 
     printf(YEL "Found Base Address: \t" RESET "%p\n", base_addr);
-    printf(YEL "Player Pointer: \t" RESET "%p\n", a_playerP);
-    printf(YEL "Player V Health: \t" RESET "%p\n", a_player_vh);
+    printf(YEL "Player Pointer: \t" RESET "%p\n", player1p);
+    printf(YEL "Player Address: \t" RESET "%p\n", player1);
+    printf(YEL "Player V Health: \t" RESET "%p\n", player1_vh);
+    printf("Health: %i\n", read_int(pid,player1_vh));
 
-   
-    if (write_int(pid,(addr)a_player_vh,1337)){
-    	printf(YEL "Hacked Health" RESET "\n");
-    } 
+    printf(YEL "Hacked Health" RESET "\n");
+
+    while (1) {
+    	write_int(pid,(addr)player1_vh,1337);
+    }	
 
 
     return 0;
 }
-
-/*
-0x4004d000 base addr
-
-0x55d2b7a4b918 // not visual
-0x55d2b2f1d400 // visual
-// 4b6798
-// 378130
-*/
